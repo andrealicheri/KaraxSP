@@ -12,3 +12,4 @@ At this point is very basic, but I plan to add some great features in the future
 # Usage
 - To create a project: `./karaxsp init`
 - To compile a project: `./karaxsp compile`
+- To run a project with a Jester server: `./karaxsp run`
