@@ -1,0 +1,13 @@
+include karax/prelude
+include components/mainComponent
+include components/notFound
+
+
+proc router(data: RouterData): VNode =
+    buildHtml(tdiv):
+        if data.hashPart == "#/" or data.hashPart == "":
+            mainComponent()
+        else:
+            notFound()
+
+setRenderer(router)

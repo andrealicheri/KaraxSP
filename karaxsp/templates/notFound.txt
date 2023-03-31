@@ -1,0 +1,7 @@
+include karax / prelude
+import karax / vstyles
+
+proc notFound(): VNode =
+    buildHtml(tdiv):
+        p(style = "text-align: center; font-size: 2rem".toCss):
+            text("NOT FOUND")
