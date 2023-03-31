@@ -5,7 +5,9 @@ import argparse
 import system
 import tables
 import strutils
+import jester
 
+echo("KaraxSP -- easy way to deal with Karax")
 # Defines errors
 var templatesMissingError: string = "One or more templates are missing. Check you have installed KaraxSP correctly."
 var dataDirDoesNotExistsError: string = "The KaraxSP directory doesn't exist. Check you have installed KaraxSP correctly."
@@ -35,16 +37,17 @@ let p = newParser():
     # Initializes project
     command("init"):
         run:
-            # Create source folder and the components folder
-            if dirExists("src") == false:
-                createDir("src")
-                createDir("src/components")
+            proc createProjectDir(folder: string) =
+                if dirExists(folder) == false:
+                    createDir(folder)
+                else:
+                    echo(initError)
+                    quit()
             
-            # If a project already exists, throw an error
-            else:
-                echo(initError)
-                quit()
-            
+            var initFolderArray = ["src", "src/components", "static"]
+            for item in initFolderArray:
+                createProjectDir(item)
+
             # Defines how to create the starter files
             proc createStarterFiles(tmpl: string, file: string) =
                 var filePath = fmt"src/{file}"
@@ -57,11 +60,13 @@ let p = newParser():
                     writeFile(filePath, templateContent)
             
             # Defines and creates the starter files
-            var initDictonary = {"router": "$router.nim", "mainComponent": "components/mainComponent.nim", "notFound": "components/notFound.nim"}.toTable
+            var initDictonary = {"router": "$router.nim", "mainComponent": "components/mainComponent.nim", "notFound": "components/notFound.nim", "html": "../static/$container.html", "server": "../$server.nim"}.toTable
             for tmpl, file in initDictonary:
                 createStarterFiles(tmpl, file)
+            
+            quit()
 
-    # Builds and run project
+    # Builds project
     command("compile"):
         run:
             var buildDirectory: string = "build"
@@ -77,10 +82,53 @@ let p = newParser():
             copyDir("src/", "tmp/")
     
             var tempRouter = "tmp/tempRouter.nim"
+            var jsOutput = "tmp/tempRouter.js"
             writeFile(tempRouter, readFile("tmp/$router.nim"))
             let compile = execCmd(fmt"nim js {tempRouter}")
             echo(compile)
-            moveFile(tempRouter, "build/app.js")
+            moveFile(jsOutput, "build/app.js")
+            
+            var destHtmlFile = "build/index.html"
+            var staticHtmlContainer = "static/$container.html"
+            var templateHtmlContainer = fmt"{installDirectory}/templates/html.txt"
+            
+            if fileExists(staticHtmlContainer) == true:
+                copyFile(staticHtmlContainer, destHtmlFile)
+            elif fileExists(templateHtmlContainer) == true:
+                copyFile(templateHtmlContainer, staticHtmlContainer)
+                copyFile(staticHtmlContainer, destHtmlFile)
+            else:
+                echo(templatesMissingError)
+                quit()
             removeDir("tmp")
+            quit()
+
+    command("run"):
+        run:
+            createDir("tmp")
+            var nimServer = "$server.nim"
+            var templateNimServer = fmt"{installDirectory}/templates/server.txt"
+            var destServer = "tmp/server.nim"
+            var destExe = "tmp/server.exe"
+            var sysTempDir = getTempDir()
+            var sysTempServer = fmt"{sysTempDir}/server.exe"
+            
+            proc compileServer()=
+                echo(execCmd(fmt"nim c {destServer}"))
+                copyFile(destExe, sysTempServer)  
+
+            if fileExists(nimServer) == false:
+                copyFile(templateNimServer, nimServer)
+            elif fileExists(templateNimServer) == false:
+                echo(templatesMissingError)
+                quit()
+            
+            copyFile(nimServer, destServer)
+            compileServer()
+            removeDir("tmp")
+            echo(execCmd(sysTempServer))            
+            quit()
 
 p.run
+
+echo("""No option selected. To init a project use "init", to compile it use "compile" and to run it use "run""")
