@@ -1,0 +1,26 @@
+    command("run"):
+        run:
+            createDir("tmp")
+            var nimServer = "$server.nim"
+            var templateNimServer = fmt"{installDirectory}/templates/server.txt"
+            var destServer = "tmp/server.nim"
+            var destExe = "tmp/server.exe"
+            var sysTempDir = getTempDir()
+            var sysTempServer = fmt"{sysTempDir}/server.exe"
+            
+            proc compileServer()=
+                echo(execCmd(fmt"nim c {destServer}"))
+                copyFile(destExe, sysTempServer)  
+
+            if fileExists(nimServer) == false:
+                if fileExists(templateNimServer) == true:
+                    copyFile(templateNimServer, nimServer)
+                else:
+                    echo(templatesMissingError)
+                    quit()
+           
+            copyFile(nimServer, destServer)
+            compileServer()
+            removeDir("tmp")
+            echo(execCmd(sysTempServer))            
+            quit()

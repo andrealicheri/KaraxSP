@@ -1,0 +1,8 @@
+import jester
+
+routes:
+    get "/@path?":
+        if @"path" == "":
+            resp(readFile("build/index.html"))
+        else:
+            resp(readFile("build/" & @"path"))

@@ -1,0 +1,24 @@
+{
+  
+  "name": "Karax blank project",
+  "short_name": "karax",
+  "description": "This is a Karax blank project",
+
+  "features": ["fast", "karax based", "simple"],
+  "categories": ["template"],
+
+  "display": "standalone",
+  "orientation": "any",
+  "display_override": ["window-controls-overlay"],
+
+  "start_url": "/",
+  "id": "/",
+  "scope": "/",
+
+  "theme_color": "#FFFFFF",
+  "background_color": "#FFFFFF",
+
+  "related_applications": [],
+  "prefer_related_applications": false
+
+}

@@ -1,0 +1,27 @@
+            proc isIcon(icon: string): bool =
+                var b: string = "static/$icon."
+                var extArray = ["png", "ico", "webp", "jpg", "jpeg"]
+                for ext in extArray:
+                    var path: string = b & ext
+                    if icon == path:
+                        return true
+            
+            for kind, path in walkDir("static/"):
+                case kind:
+                of pcFile:
+                    if isIcon(path) == true:
+                        var icon = path.replace("static/", "tmp/").replace("$", "")
+                        var destAssets = "build/assets"
+                        copyFile(path, icon)
+                        if dirExists(destAssets):
+                            createDir(destAssets)
+                        echo(execCmd(fmt"pwa-asset-generator {icon} {destAssets} -i {destHtmlFile}"))
+                    elif path == staticHtmlContainer:
+                        echo("")
+
+                of pcDir:
+                    copyDir(path, path.replace("static/", "build/"))
+                of pcLinkToFile:
+                    echo("")
+                of pcLinkToDir:
+                    echo("")

@@ -5,7 +5,8 @@ import argparse
 import system
 import tables
 import strutils
-import jester
+import sequtils
+import json
 
 echo("KaraxSP -- easy way to deal with Karax")
 # Defines errors
@@ -60,10 +61,12 @@ let p = newParser():
                     writeFile(filePath, templateContent)
             
             # Defines and creates the starter files
-            var initDictonary = {"router": "$router.nim", "mainComponent": "components/mainComponent.nim", "notFound": "components/notFound.nim", "html": "../static/$container.html", "server": "../$server.nim"}.toTable
+            var initDictonary = {"router": "$router.nim", "mainComponent": "components/mainComponent.nim", "notFound": "components/notFound.nim", "html": "../static/$container.html", "nimble": "../package.nimble", "manifest": "../static/$manifest.json"}.toTable
             for tmpl, file in initDictonary:
                 createStarterFiles(tmpl, file)
+            copyFile(fmt"{installDirectory}/templates/icon.jpg", "static/$icon.jpg")
             
+            echo("A new Karax project was created.")
             quit()
 
     # Builds project
@@ -80,55 +83,98 @@ let p = newParser():
             ephemeralDirectory(buildDirectory)
 
             copyDir("src/", "tmp/")
-    
+
+            # Creates actual Karax bundle AND service worker
             var tempRouter = "tmp/tempRouter.nim"
             var jsOutput = "tmp/tempRouter.js"
+            var jsProd = "build/app.js"
             writeFile(tempRouter, readFile("tmp/$router.nim"))
             let compile = execCmd(fmt"nim js {tempRouter}")
             echo(compile)
-            moveFile(jsOutput, "build/app.js")
+            copyFile(jsOutput, jsProd)
             
             var destHtmlFile = "build/index.html"
             var staticHtmlContainer = "static/$container.html"
             var templateHtmlContainer = fmt"{installDirectory}/templates/html.txt"
+            var templateServiceWorker = fmt"{installDirectory}/templates/sw.txt"
+            var templateHtmlBoilerplate = fmt"{installDirectory}/templates/htmlboilerplate.txt"
+            var serviceWorkerDest = "build/sw.js"
+            copyFile(templateServiceWorker, serviceWorkerDest)
+
+            # Creates HTML container
+            if fileExists(staticHtmlContainer) == false:
+                if fileExists(templateHtmlContainer) == true:
+                    copyFile(templateHtmlContainer, staticHtmlContainer)
+                else:
+                    echo(templatesMissingError)
+                    quit()
             
-            if fileExists(staticHtmlContainer) == true:
-                copyFile(staticHtmlContainer, destHtmlFile)
-            elif fileExists(templateHtmlContainer) == true:
-                copyFile(templateHtmlContainer, staticHtmlContainer)
-                copyFile(staticHtmlContainer, destHtmlFile)
-            else:
-                echo(templatesMissingError)
-                quit()
+            copyFile(staticHtmlContainer, destHtmlFile)
+            
+            # Creates manifest
+            var manifest = "static/$manifest.json"
+            var templateManifest = fmt"{installDirectory}/templates/manifest.txt"
+            var destManifest = "build/manifest.json"
+
+            if fileExists(manifest) == false:
+                if fileExists(templateManifest) == true:
+                    copyFile(templateManifest, manifest)
+                else:
+                    echo(templatesMissingError)
+                    quit()
+            
+            copyFile(manifest, destManifest)
+            var manifestRoot = parseJson(readFile(manifest))
+            var themeColor = manifestRoot["theme_color"].getStr()
+            var htmlDescription = manifestRoot["description"].getStr()
+            var htmlTitle = manifestRoot["name"].getStr()
+
+            # Spawn assets
+            for kind, path in walkDir("static/"):
+                # I know, this implementation should put me to death. However I have not enought time to work on a clean implementation (similar to the one in deprecated/)
+                if path == """static\$icon.jpg""" or path == """static\$icon.png""" or path == """static\$icon.webp""" or path == """static\$icon.jpeg""" or path == """static\$icon.ico""":
+                    case kind:
+                    of pcFile:
+                        var icon = path.replace("static/", "tmp/").replace("$", "")
+                        var destAssets = "build/assets"
+                        copyFile(path, icon)
+                        if dirExists(destAssets):
+                            createDir(destAssets)
+                        echo(execShellCmd(fmt"pwa-asset-generator {icon} {destAssets} -i {destHtmlFile} -m {destManifest} -f"))
+                        removeFile(icon)
+                    of pcDir:
+                        copyDir(path, path.replace("static/", "build/"))
+                    of pcLinkToFile:
+                        echo("")
+                    of pcLinkToDir:
+                        echo("")
+            
+            writeFile(destHtmlFile, readFile(destHtmlFile).replace("</head>", readFile(templateHtmlBoilerplate).replace("VAR_THEME_COLOR", themeColor).replace("VAR_DESCRIPTION", htmlDescription).replace("VAR_TITLE", htmlTitle)))
+            
+            # Bundles the main JavaScript
+            echo(execShellCmd("webpack ./build/app.js"))
+            moveFile("dist/main.js", "build/app.js")
+            removeDir("dist")
+
+            # Copies public files
+            copyDir("static", buildDirectory)
+            removeFile("build/$container.html")
+            removeFile("build/$manifest.json")
+            proc removeIfExists(file: string) =
+                if fileExists(file):
+                    removeFile(file)
+            removeIfExists("""build/$icon.png""")
+            removeIfExists("""build/$icon.ico""")
+            removeIfExists("""build/$icon.webp""")
+            removeIfExists("""build/$icon.jpg""")
+            removeIfExists("""build/$icon.jpeg""")
+
+            # Removes tmp and comunicates success
             removeDir("tmp")
+            echo("The project was built successfully.")
             quit()
 
-    command("run"):
-        run:
-            createDir("tmp")
-            var nimServer = "$server.nim"
-            var templateNimServer = fmt"{installDirectory}/templates/server.txt"
-            var destServer = "tmp/server.nim"
-            var destExe = "tmp/server.exe"
-            var sysTempDir = getTempDir()
-            var sysTempServer = fmt"{sysTempDir}/server.exe"
-            
-            proc compileServer()=
-                echo(execCmd(fmt"nim c {destServer}"))
-                copyFile(destExe, sysTempServer)  
-
-            if fileExists(nimServer) == false:
-                copyFile(templateNimServer, nimServer)
-            elif fileExists(templateNimServer) == false:
-                echo(templatesMissingError)
-                quit()
-            
-            copyFile(nimServer, destServer)
-            compileServer()
-            removeDir("tmp")
-            echo(execCmd(sysTempServer))            
-            quit()
 
 p.run
 
-echo("""No option selected. To init a project use "init", to compile it use "compile" and to run it use "run""")
+echo("""No option selected. To init a project use "init", to compile it use "compile" and to run it use "run"""")
